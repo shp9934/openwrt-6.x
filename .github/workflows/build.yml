@@ -18,10 +18,10 @@ jobs:
       - name: 检出源码
         uses: actions/checkout@v4
 
-      - name: 安装编译依赖
+      - name: 安装编译依赖（修复版）
         run: |
           sudo apt update -y
-          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+          sudo apt install -y ack-grep libantlr3c-dev asciidoc autoconf automake autopoint binutils bison build-essential \
           bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
           git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfreetype6-dev libgmp-dev liblzo2-dev \
           libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool libyaml-dev \
