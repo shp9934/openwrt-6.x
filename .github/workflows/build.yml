@@ -1,23 +1,24 @@
-name: Build LiBwrt 6.x for 亚瑟 AX1800
+name: Build LiBwrt 6.x 亚瑟AX1800 (含Passwall+NSS)
 
 on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
       ssh:
-        description: 'SSH debug'
+        description: 'SSH调试(默认关闭)'
         required: false
         default: 'false'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 360
 
     steps:
-      - name: Checkout
+      - name: 检出源码
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: 安装编译依赖
         run: |
           sudo apt update -y
           sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
@@ -28,40 +29,56 @@ jobs:
           python3-pyelftools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs unzip wget \
           xml xsltproc xxd zlib1g-dev
 
-      - name: Update feeds
+      - name: 添加 Passwall 插件源
+        run: |
+          # 拉取 Passwall 主源码
+          git clone https://github.com/xiaorouji/openwrt-passwall.git package/passwall
+          # 拉取 Passwall 依赖源码
+          git clone https://github.com/xiaorouji/openwrt-passwall-packages.git package/passwall-packages
+
+      - name: 更新软件源
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Config for 亚瑟 AX1800 (JDC AX1800 Pro)
+      - name: 生成固件配置 (亚瑟AX1800 + NSS + Passwall)
         run: |
           cat > .config <<EOF
+          # 设备核心配置 (京东云亚瑟 AX1800 Pro)
           CONFIG_TARGET_qualcommax=y
           CONFIG_TARGET_qualcommax_ipq60xx=y
           CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdc_ax1800-pro=y
-          CONFIG_DEVEL=y
+          
+          # NSS硬件加速 (默认开启, 千兆必备)
           CONFIG_NSS_DRIVER_ENABLE=y
           CONFIG_PACKAGE_kmod-qca-nss-dp=y
           CONFIG_PACKAGE_kmod-qca-nss-drv=y
           CONFIG_PACKAGE_luci-app-nss-ecm=y
+          
+          # 集成 Passwall 核心插件
+          CONFIG_PACKAGE_luci-app-passwall=y
+          CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
+          
+          # 基础依赖
+          CONFIG_DEVEL=y
           EOF
           make defconfig
 
-      - name: SSH connection to Actions
+      - name: SSH远程连接 (可选调试)
         uses: P3TERX/ssh2actions@main
         if: github.event.inputs.ssh == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-      - name: Download package
+      - name: 下载编译依赖
         run: make download -j$(nproc)
 
-      - name: Compile
+      - name: 开始编译固件
         run: make -j$(nproc) || make -j1 V=s
 
-      - name: Upload firmware
+      - name: 上传固件成品
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-ax1800-libwrt
+          name: libwrt-ax1800-passwall
           path: bin/targets/qualcommax/ipq60xx/*.bin
